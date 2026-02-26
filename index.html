@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YOS Scripts — Portail d'installation</title>
+  <style>
+    :root {
+      --bg: #0d0d0f;
+      --panel: #141418;
+      --card: #1a1a22;
+      --hover: #22222e;
+      --border: #2a2a38;
+      --purple: #7c3aed;
+      --purple-l: #a78bfa;
+      --purple-d: #4c1d95;
+      --text: #e8e8f0;
+      --muted: #8888a0;
+      --dim: #555568;
+      --ok: #22c55e;
+      --err: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    .container { max-width: 680px; margin: 0 auto; }
+
+    /* Header */
+    .header { margin-bottom: 40px; }
+    .logo {
+      display: inline-flex; align-items: center; gap: 12px;
+      margin-bottom: 16px;
+    }
+    .logo-mark {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: var(--purple);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 800; color: #fff;
+    }
+    .logo-name { font-size: 22px; font-weight: 700; color: var(--text); }
+    .header-desc { font-size: 14px; color: var(--muted); line-height: 1.6; }
+    .header-desc a { color: var(--purple-l); text-decoration: none; }
+    .header-desc a:hover { text-decoration: underline; }
+
+    /* Install instructions */
+    .install-note {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--purple);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 32px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .install-note strong { color: var(--text); }
+
+    /* Scripts grid */
+    .scripts-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .scripts-title { font-size: 11px; font-weight: 700; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+    .refresh-btn {
+      font-size: 11px; color: var(--muted); background: none; border: none;
+      cursor: pointer; padding: 4px 8px; border-radius: 5px;
+      border: 1px solid var(--border); transition: all 0.15s;
+    }
+    .refresh-btn:hover { color: var(--purple-l); border-color: var(--purple); }
+
+    .scripts-list { display: flex; flex-direction: column; gap: 12px; }
+
+    .script-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+      transition: border-color 0.15s;
+    }
+    .script-card:hover { border-color: var(--purple); }
+
+    .script-info { flex: 1; min-width: 0; }
+    .script-name {
+      font-size: 14px; font-weight: 700; color: var(--text);
+      margin-bottom: 4px;
+    }
+    .script-desc {
+      font-size: 12px; color: var(--muted);
+      margin-bottom: 8px; line-height: 1.5;
+    }
+    .script-meta {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .badge {
+      font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
+      letter-spacing: 0.3px;
+    }
+    .badge-version { background: var(--purple-d); color: var(--purple-l); }
+    .badge-updated { background: rgba(136,136,160,0.12); color: var(--muted); }
+
+    .install-btn {
+      flex-shrink: 0;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 16px;
+      background: var(--purple);
+      color: #fff; font-size: 12px; font-weight: 700;
+      border: none; border-radius: 8px;
+      cursor: pointer; text-decoration: none;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .install-btn:hover { background: var(--purple-l); color: #fff; transform: translateY(-1px); }
+    .install-btn svg { width: 13px; height: 13px; fill: currentColor; }
+
+    /* Loading / error states */
+    .state-loading, .state-error, .state-empty {
+      text-align: center; padding: 40px 20px;
+      color: var(--muted); font-size: 13px;
+    }
+    .spinner {
+      width: 24px; height: 24px; border-radius: 50%;
+      border: 3px solid var(--border);
+      border-top-color: var(--purple);
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Footer */
+    .footer {
+      margin-top: 48px; padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 11px; color: var(--dim);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 8px;
+    }
+    .footer a { color: var(--muted); text-decoration: none; }
+    .footer a:hover { color: var(--purple-l); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">
+        <div class="logo-mark">Y</div>
+        <span class="logo-name">YOS Scripts</span>
+      </div>
+      <p class="header-desc">
+        Portail d'installation des userscripts YOS pour Gear Pro et tout gestionnaire compatible.<br>
+        Source : <a href="https://github.com/yj000018/yos-scripts" target="_blank">github.com/yj000018/yos-scripts</a>
+      </p>
+    </div>
+
+    <div class="install-note">
+      <strong>Installation dans Gear Pro :</strong> Tape sur <strong>Install</strong> — Gear Pro détecte automatiquement le fichier <code>.user.js</code> et propose l'installation.<br>
+      <strong>Mises à jour :</strong> Extensions → script → <strong>Check for update</strong>. Les updates passent directement par GitHub, sans intermédiaire.
+    </div>
+
+    <div class="scripts-header">
+      <span class="scripts-title">Scripts disponibles</span>
+      <button class="refresh-btn" onclick="loadScripts()">↺ Actualiser</button>
+    </div>
+
+    <div id="scripts-list" class="scripts-list">
+      <div class="state-loading">
+        <div class="spinner"></div>
+        Chargement des scripts…
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>YOS Scripts — Yannick Jolliet</span>
+      <a href="https://github.com/yj000018/yos-scripts" target="_blank">GitHub →</a>
+    </div>
+  </div>
+
+  <script>
+    const REPO = 'yj000018/yos-scripts';
+    const BRANCH = 'main';
+    const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/${BRANCH}`;
+    const API_BASE = `https://api.github.com/repos/${REPO}/contents`;
+
+    // Parse @metadata from userscript header
+    function parseMeta(code) {
+      const meta = {};
+      const block = code.match(/\/\/ ==UserScript==([\s\S]*?)\/\/ ==\/UserScript==/);
+      if (!block) return meta;
+      const lines = block[1].split('\n');
+      lines.forEach(line => {
+        const m = line.match(/\/\/\s+@(\w+)\s+(.*)/);
+        if (m) {
+          const key = m[1].trim();
+          const val = m[2].trim();
+          if (!meta[key]) meta[key] = val;
+        }
+      });
+      return meta;
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleDateString('fr-CH', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function renderScript(file, meta, updatedAt) {
+      const rawUrl = `${RAW_BASE}/${file.name}`;
+      const name = meta.name || file.name.replace('.user.js', '');
+      const desc = meta.description || '';
+      const version = meta.version || '';
+      const updated = formatDate(updatedAt);
+
+      return `
+        <div class="script-card">
+          <div class="script-info">
+            <div class="script-name">${name}</div>
+            ${desc ? `<div class="script-desc">${desc}</div>` : ''}
+            <div class="script-meta">
+              ${version ? `<span class="badge badge-version">v${version}</span>` : ''}
+              ${updated ? `<span class="badge badge-updated">Mis à jour ${updated}</span>` : ''}
+            </div>
+          </div>
+          <a class="install-btn" href="${rawUrl}">
+            <svg viewBox="0 0 24 24"><path d="M12 16l-6-6h4V4h4v6h4l-6 6zM4 20h16v-2H4v2z"/></svg>
+            Install
+          </a>
+        </div>
+      `;
+    }
+
+    async function loadScripts() {
+      const container = document.getElementById('scripts-list');
+      container.innerHTML = '<div class="state-loading"><div class="spinner"></div>Chargement…</div>';
+
+      try {
+        // List all files in repo root
+        const res = await fetch(`${API_BASE}?ref=${BRANCH}`);
+        if (!res.ok) throw new Error(`GitHub API: ${res.status}`);
+        const files = await res.json();
+
+        // Filter .user.js files
+        const scripts = files.filter(f => f.name.endsWith('.user.js') && f.type === 'file');
+
+        if (!scripts.length) {
+          container.innerHTML = '<div class="state-empty">Aucun script trouvé dans le repo.</div>';
+          return;
+        }
+
+        // Fetch commit dates for each script
+        const cards = await Promise.all(scripts.map(async (file) => {
+          let meta = {};
+          let updatedAt = null;
+          try {
+            // Fetch raw content to parse metadata
+            const rawRes = await fetch(`${RAW_BASE}/${file.name}`);
+            const code = await rawRes.text();
+            meta = parseMeta(code);
+          } catch(e) {}
+          try {
+            // Fetch last commit date
+            const commitRes = await fetch(`https://api.github.com/repos/${REPO}/commits?path=${file.name}&per_page=1`);
+            const commits = await commitRes.json();
+            if (commits.length) updatedAt = commits[0].commit.committer.date;
+          } catch(e) {}
+          return { file, meta, updatedAt };
+        }));
+
+        // Sort: alphabetical by name
+        cards.sort((a, b) => (a.meta.name || a.file.name).localeCompare(b.meta.name || b.file.name));
+
+        container.innerHTML = cards.map(({ file, meta, updatedAt }) =>
+          renderScript(file, meta, updatedAt)
+        ).join('');
+
+      } catch(err) {
+        container.innerHTML = `<div class="state-error">Erreur de chargement : ${err.message}<br><br>
+          <a href="https://github.com/${REPO}" style="color:#a78bfa">Voir le repo GitHub →</a></div>`;
+      }
+    }
+
+    loadScripts();
+  </script>
+</body>
+</html>

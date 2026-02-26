@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         YOS Archiver
-// @version      2.2.0
+// @version      2.3.0
 // @description  Push, Archive, or Delete conversations from any LLM to YOS knowledge base.
 // @author       Yannick Jolliet / Manus AI
 // @match        https://chatgpt.com/*
