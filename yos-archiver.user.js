@@ -14,8 +14,10 @@
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_addStyle
-// @updateURL    https://raw.githubusercontent.com/yannick-yos/yos-archiver/main/yos-archiver.user.js
-// @downloadURL  https://raw.githubusercontent.com/yannick-yos/yos-archiver/main/yos-archiver.user.js
+// @namespace    https://github.com/yj000018/yos-scripts
+// @updateURL    https://raw.githubusercontent.com/yj000018/yos-scripts/main/yos-archiver.user.js
+// @downloadURL  https://raw.githubusercontent.com/yj000018/yos-scripts/main/yos-archiver.user.js
+// @supportURL   https://github.com/yj000018/yos-scripts/issues
 // ==/UserScript==
 
 (function () {

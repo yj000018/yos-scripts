@@ -11,6 +11,10 @@
 // @match        https://www.perplexity.ai/*
 // @match        https://perplexity.ai/*
 // @match        https://manus.im/*
+// @namespace    https://github.com/yj000018/yos-scripts
+// @updateURL    https://raw.githubusercontent.com/yj000018/yos-scripts/main/yos-hub.user.js
+// @downloadURL  https://raw.githubusercontent.com/yj000018/yos-scripts/main/yos-hub.user.js
+// @supportURL   https://github.com/yj000018/yos-scripts/issues
 // @run-at       document-idle
 // @run-in       both
 // @grant        GM_setValue
