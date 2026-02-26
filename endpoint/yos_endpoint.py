@@ -12,6 +12,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
+# Pinecone
+try:
+    from pinecone import Pinecone, ServerlessSpec
+    _PINECONE_AVAILABLE = True
+except ImportError:
+    _PINECONE_AVAILABLE = False
+    print("WARNING: pinecone-client not installed — MMM will use JSON fallback")
+
 # --- Configuration ---
 ARCHIVES_DIR = os.getenv("ARCHIVES_DIR", "/app/archives")
 NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID", "31235e21-8cf8-8126-9212-f5a0eebadce0")
@@ -19,35 +27,50 @@ NOTION_API_KEY = os.getenv("NOTION_API_KEY")
 YOS_API_KEY = os.getenv("YOS_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_API_BASE = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "yos-memory-poc")
 NOTION_API_VERSION = "2022-06-28"
 NOTION_BASE_URL = "https://api.notion.com/v1"
 PUSH_MODEL = "gpt-4o-mini"
 EMBED_MODEL = "text-embedding-3-small"
-MMM_INDEX_FILE = os.getenv("MMM_INDEX_FILE", "/app/archives/mmm_index.json")
+EMBED_DIMENSION = 1536
+MMM_INDEX_FILE = os.getenv("MMM_INDEX_FILE", "/app/archives/mmm_index.json")  # fallback only
 
 os.makedirs(ARCHIVES_DIR, exist_ok=True)
 
 # ============================================================
 # MMM — Multi-session/LLM Memory Manager
-# Vector store léger : JSON + cosine similarity (no FAISS dep)
+# Backend: Pinecone (persistent) avec fallback JSON local
 # ============================================================
 
 _mmm_lock = threading.Lock()
+_pinecone_index = None
 
-def _load_mmm_index() -> List[Dict]:
-    """Charge l'index MMM depuis le fichier JSON."""
-    if not os.path.exists(MMM_INDEX_FILE):
-        return []
+def _get_pinecone_index():
+    """Initialise et retourne l'index Pinecone. Singleton."""
+    global _pinecone_index
+    if _pinecone_index is not None:
+        return _pinecone_index
+    if not _PINECONE_AVAILABLE or not PINECONE_API_KEY:
+        return None
     try:
-        with open(MMM_INDEX_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
-
-def _save_mmm_index(index: List[Dict]) -> None:
-    """Sauvegarde l'index MMM dans le fichier JSON."""
-    with open(MMM_INDEX_FILE, "w", encoding="utf-8") as f:
-        json.dump(index, f, ensure_ascii=False)
+        pc = Pinecone(api_key=PINECONE_API_KEY)
+        existing = [i.name for i in pc.list_indexes()]
+        if PINECONE_INDEX_NAME not in existing:
+            print(f"Pinecone: creating index '{PINECONE_INDEX_NAME}'...")
+            pc.create_index(
+                name=PINECONE_INDEX_NAME,
+                dimension=EMBED_DIMENSION,
+                metric="cosine",
+                spec=ServerlessSpec(cloud="aws", region="us-east-1")
+            )
+            import time; time.sleep(5)  # attendre que l'index soit prêt
+        _pinecone_index = pc.Index(PINECONE_INDEX_NAME)
+        print(f"Pinecone: connected to index '{PINECONE_INDEX_NAME}'")
+        return _pinecone_index
+    except Exception as e:
+        print(f"Pinecone init error: {e}")
+        return None
 
 def _embed_text(text: str) -> Optional[List[float]]:
     """Génère un embedding OpenAI pour un texte."""
@@ -67,7 +90,7 @@ def _embed_text(text: str) -> Optional[List[float]]:
         return None
 
 def _cosine_similarity(a: List[float], b: List[float]) -> float:
-    """Calcule la similarité cosinus entre deux vecteurs."""
+    """Calcule la similarité cosinus entre deux vecteurs (fallback JSON)."""
     dot = sum(x * y for x, y in zip(a, b))
     norm_a = math.sqrt(sum(x * x for x in a))
     norm_b = math.sqrt(sum(x * x for x in b))
@@ -97,8 +120,22 @@ def _build_chunk_text(record: Dict) -> str:
         parts.append(f"Source: {source}")
     return "\n".join(parts)
 
+# --- JSON fallback helpers (utilisés si Pinecone indisponible) ---
+def _load_mmm_index() -> List[Dict]:
+    if not os.path.exists(MMM_INDEX_FILE):
+        return []
+    try:
+        with open(MMM_INDEX_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def _save_mmm_index(index: List[Dict]) -> None:
+    with open(MMM_INDEX_FILE, "w", encoding="utf-8") as f:
+        json.dump(index, f, ensure_ascii=False)
+
 def mmm_index_record(record: Dict) -> bool:
-    """Indexe un record archivé dans le MMM. Retourne True si succès."""
+    """Indexe un record dans Pinecone (ou JSON fallback). Retourne True si succès."""
     archive_id = record.get("archive_id", str(uuid.uuid4()))
     chunk_text = _build_chunk_text(record)
     if not chunk_text.strip():
@@ -106,29 +143,73 @@ def mmm_index_record(record: Dict) -> bool:
     embedding = _embed_text(chunk_text)
     if not embedding:
         return False
-    entry = {
-        "archive_id": archive_id,
-        "title": record.get("title", ""),
+
+    # Métadonnées pour Pinecone (strings/numbers uniquement)
+    metadata = {
+        "title": record.get("title", "")[:500],
         "source": record.get("source", ""),
         "archived_at": record.get("archived_at", ""),
-        "notion_url": record.get("notion_page_url", ""),
-        "chunk_text": chunk_text,
-        "embedding": embedding,
+        "notion_url": record.get("notion_page_url", "")[:500],
+        "chunk_text": chunk_text[:1000],
     }
+
+    # Tentative Pinecone
+    pc_index = _get_pinecone_index()
+    if pc_index is not None:
+        try:
+            pc_index.upsert(vectors=[{
+                "id": archive_id,
+                "values": embedding,
+                "metadata": metadata
+            }])
+            print(f"MMM[Pinecone]: indexed '{record.get('title', '')}' ({archive_id})")
+            return True
+        except Exception as e:
+            print(f"Pinecone upsert error: {e} — falling back to JSON")
+
+    # Fallback JSON
+    entry = {**metadata, "archive_id": archive_id, "embedding": embedding}
     with _mmm_lock:
         index = _load_mmm_index()
-        # Remplacer si archive_id existe déjà
         index = [e for e in index if e.get("archive_id") != archive_id]
         index.append(entry)
         _save_mmm_index(index)
-    print(f"MMM: indexed '{record.get('title', '')}' ({archive_id})")
+    print(f"MMM[JSON-fallback]: indexed '{record.get('title', '')}' ({archive_id})")
     return True
 
 def mmm_search(query: str, top_k: int = 3) -> List[Dict]:
-    """Recherche sémantique dans l'index MMM. Retourne top_k résultats."""
+    """Recherche sémantique dans Pinecone (ou JSON fallback). Retourne top_k résultats."""
     query_embedding = _embed_text(query)
     if not query_embedding:
         return []
+
+    # Tentative Pinecone
+    pc_index = _get_pinecone_index()
+    if pc_index is not None:
+        try:
+            resp = pc_index.query(
+                vector=query_embedding,
+                top_k=top_k,
+                include_metadata=True
+            )
+            results = []
+            for match in resp.matches:
+                m = match.metadata or {}
+                results.append({
+                    "archive_id": match.id,
+                    "title": m.get("title", ""),
+                    "source": m.get("source", ""),
+                    "archived_at": m.get("archived_at", ""),
+                    "notion_url": m.get("notion_url", ""),
+                    "chunk_text": m.get("chunk_text", ""),
+                    "score": round(match.score, 4),
+                    "backend": "pinecone"
+                })
+            return results
+        except Exception as e:
+            print(f"Pinecone query error: {e} — falling back to JSON")
+
+    # Fallback JSON
     index = _load_mmm_index()
     if not index:
         return []
@@ -144,12 +225,13 @@ def mmm_search(query: str, top_k: int = 3) -> List[Dict]:
     for score, entry in scored[:top_k]:
         results.append({
             "archive_id": entry["archive_id"],
-            "title": entry["title"],
-            "source": entry["source"],
-            "archived_at": entry["archived_at"],
+            "title": entry.get("title", ""),
+            "source": entry.get("source", ""),
+            "archived_at": entry.get("archived_at", ""),
             "notion_url": entry.get("notion_url", ""),
-            "chunk_text": entry["chunk_text"],
+            "chunk_text": entry.get("chunk_text", ""),
             "score": round(score, 4),
+            "backend": "json-fallback"
         })
     return results
 
@@ -402,12 +484,16 @@ def create_notion_page(item: ArchivePayload, insights: Optional[Dict] = None) ->
 # --- Endpoints ---
 @app.get("/health")
 async def health_check():
+    pc_index = _get_pinecone_index()
+    pinecone_status = "connected" if pc_index is not None else ("key missing" if not PINECONE_API_KEY else "error")
     return {
         "status": "ok",
-        "version": "2.2.0",
+        "version": "2.3.0",
         "message": "YOS Archiver Endpoint is running",
         "notion": "configured" if NOTION_API_KEY else "not configured",
         "openai": "configured" if OPENAI_API_KEY else "not configured",
+        "pinecone": pinecone_status,
+        "pinecone_index": PINECONE_INDEX_NAME,
         "database_id": NOTION_DATABASE_ID
     }
 
@@ -482,10 +568,12 @@ async def mmm_search_endpoint(req: MMMSearchRequest, api_key: str = Depends(veri
 
 @app.post("/api/mmm/index")
 async def mmm_index_endpoint(background_tasks: BackgroundTasks, api_key: str = Depends(verify_api_key)):
-    """Re-indexe toutes les archives locales dans le MMM."""
+    """Re-indexe toutes les archives locales dans Pinecone (ou JSON fallback)."""
     files = [f for f in os.listdir(ARCHIVES_DIR) if f.endswith(".json") and f != "mmm_index.json"]
+    pc_index = _get_pinecone_index()
+    backend = "pinecone" if pc_index is not None else "json-fallback"
     if not files:
-        return {"message": "No archives to index", "indexed": 0}
+        return {"message": "No local archives to index", "indexed": 0, "backend": backend}
     def _reindex_all():
         count = 0
         for filename in files:
@@ -497,19 +585,34 @@ async def mmm_index_endpoint(background_tasks: BackgroundTasks, api_key: str = D
                     count += 1
             except Exception as e:
                 print(f"Reindex error for {filename}: {e}")
-        print(f"MMM: re-indexed {count}/{len(files)} archives")
+        print(f"MMM: re-indexed {count}/{len(files)} archives via {backend}")
     background_tasks.add_task(_reindex_all)
-    return {"message": f"Re-indexing {len(files)} archives in background", "total": len(files)}
+    return {"message": f"Re-indexing {len(files)} archives in background via {backend}", "total": len(files), "backend": backend}
 
 @app.get("/api/mmm/stats")
 async def mmm_stats(api_key: str = Depends(verify_api_key)):
-    """Statistiques de l'index MMM."""
+    """Statistiques de l'index MMM (Pinecone ou JSON fallback)."""
+    pc_index = _get_pinecone_index()
+    if pc_index is not None:
+        try:
+            stats = pc_index.describe_index_stats()
+            return {
+                "backend": "pinecone",
+                "index_name": PINECONE_INDEX_NAME,
+                "total_indexed": stats.total_vector_count,
+                "dimension": stats.dimension,
+                "embed_model": EMBED_MODEL,
+            }
+        except Exception as e:
+            print(f"Pinecone stats error: {e}")
+    # Fallback JSON
     index = _load_mmm_index()
     sources = {}
     for entry in index:
         s = entry.get("source", "Unknown")
         sources[s] = sources.get(s, 0) + 1
     return {
+        "backend": "json-fallback",
         "total_indexed": len(index),
         "sources": sources,
         "index_file": MMM_INDEX_FILE,
