@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YOS Hub
-// @version      3.5.0
-// @description  YOS Hub universel — point d'entrée unique pour toutes les fonctionnalités YOS.
+// @version      3.6.0
+// @description  YOS Hub universel — point d'entrée unique pour toutes les fonctionnalités YOS. Inclut MMM (Multi-session/LLM Memory Manager).
 // @author       Yannick Jolliet / Manus AI
 // @match        https://chat.openai.com/*
 // @match        https://chatgpt.com/*
@@ -125,6 +125,20 @@
     #yosh-status.loading { background: rgba(124,58,237,0.1); color: ${C.purpleL}; border: 1px solid ${C.purpleD}; }
     #yosh-status.ok  { background: rgba(34,197,94,0.1); color: ${C.ok}; border: 1px solid rgba(34,197,94,0.3); }
     #yosh-status.err { background: rgba(239,68,68,0.1); color: ${C.err}; border: 1px solid rgba(239,68,68,0.3); }
+    .yosh-mmm-result {
+      background: ${C.card}; border: 1px solid ${C.border}; border-radius: 8px;
+      padding: 10px; margin-bottom: 6px; cursor: pointer;
+    }
+    .yosh-mmm-result:hover { background: ${C.hover}; }
+    .yosh-mmm-result-title { font-size: 13px; font-weight: 600; color: ${C.text}; }
+    .yosh-mmm-result-meta { font-size: 11px; color: ${C.muted}; margin-top: 2px; }
+    .yosh-mmm-result-text { font-size: 12px; color: ${C.dim}; margin-top: 4px; white-space: pre-wrap; }
+    .yosh-mmm-inject-btn {
+      width: 100%; padding: 8px; background: ${C.purpleD};
+      border: 1px solid ${C.purple}; border-radius: 8px;
+      color: ${C.white}; font-size: 13px; cursor: pointer; margin-top: 4px;
+    }
+    .yosh-mmm-inject-btn:hover { background: ${C.purple}; }
   `);
 
   // ─── PLATFORM ────────────────────────────────────────────────────────────────
@@ -178,6 +192,144 @@
     });
   }
 
+  // ─── MMM — Multi-session/LLM Memory Manager ─────────────────────────────────
+  function mmmSearch(query, topK) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method:  'POST',
+        url:     `${API_ENDPOINT}/mmm/search`,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
+        data:    JSON.stringify({ query: query, top_k: topK || 3, context_mode: true }),
+        timeout: 20000,
+        onload:  (r) => {
+          try {
+            const d = JSON.parse(r.responseText);
+            if (r.status >= 200 && r.status < 300) resolve(d);
+            else reject(new Error(d.detail || `HTTP ${r.status}`));
+          } catch (e) { reject(new Error('Invalid response')); }
+        },
+        onerror:   () => reject(new Error('Network error')),
+        ontimeout: () => reject(new Error('Timeout')),
+      });
+    });
+  }
+
+  function mmmInjectContext(context) {
+    // Cherche la zone de saisie active sur la plateforme courante
+    const selectors = [
+      '#prompt-textarea',
+      'textarea[placeholder]',
+      '[contenteditable="true"]',
+      'div[role="textbox"]',
+    ];
+    let input = null;
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el && (el.offsetWidth > 0 || el.offsetHeight > 0)) { input = el; break; }
+    }
+    if (!input) { setStatus('err', '✗ Zone de saisie introuvable'); return; }
+    const prefix = `[Contexte YOS Memory]\n${context}\n\n---\n\n`;
+    if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') {
+      const proto = input.tagName === 'TEXTAREA'
+        ? window.HTMLTextAreaElement.prototype
+        : window.HTMLInputElement.prototype;
+      const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value');
+      if (nativeSetter && nativeSetter.set) {
+        nativeSetter.set.call(input, prefix + (input.value || ''));
+      } else {
+        input.value = prefix + (input.value || '');
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      // contenteditable
+      input.focus();
+      input.innerText = prefix + (input.innerText || '');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    setStatus('ok', `✓ Contexte MMM injecté`);
+  }
+
+  async function handleMMMSearch() {
+    const defaultQuery = document.title.replace(/ - (ChatGPT|Claude|Gemini|Perplexity|Manus).*/, '').trim();
+    const query = prompt('Recherche dans la mémoire YOS :', defaultQuery || '');
+    if (!query) return;
+    setStatus('loading', '⏳ Recherche MMM…');
+    try {
+      const result = await mmmSearch(query, 3);
+      const body = document.getElementById('yosh-body');
+      if (!result.count || result.count === 0) {
+        setStatus('ok', '⚠️ Aucun résultat dans la mémoire YOS');
+        return;
+      }
+      // Affiche les résultats dans le panel
+      const resultsDiv = document.createElement('div');
+      resultsDiv.style.cssText = 'padding:10px;';
+      const header = document.createElement('div');
+      header.style.cssText = `font-size:11px;color:${C.muted};margin-bottom:8px;`;
+      header.textContent = `${result.count} souvenir(s) — tap pour injecter`;
+      resultsDiv.appendChild(header);
+
+      result.results.forEach((r) => {
+        const item = document.createElement('div');
+        item.className = 'yosh-mmm-result';
+        item.innerHTML = `
+          <div class="yosh-mmm-result-title">${r.title}</div>
+          <div class="yosh-mmm-result-meta">${r.source} · ${(r.archived_at || '').substring(0, 10)} · score: ${r.score}</div>
+          <div class="yosh-mmm-result-text">${r.chunk_text.substring(0, 200)}…</div>
+        `;
+        item.addEventListener('click', () => {
+          mmmInjectContext(r.chunk_text);
+          body.innerHTML = '';
+          renderCategories();
+        });
+        resultsDiv.appendChild(item);
+      });
+
+      // Bouton injecter tout le contexte
+      const injectAll = document.createElement('button');
+      injectAll.className = 'yosh-mmm-inject-btn';
+      injectAll.textContent = '⬆ Injecter tout le contexte';
+      injectAll.addEventListener('click', () => {
+        mmmInjectContext(result.context);
+        body.innerHTML = '';
+        renderCategories();
+      });
+      resultsDiv.appendChild(injectAll);
+
+      // Bouton retour
+      const back = document.createElement('button');
+      back.className = 'yosh-mmm-inject-btn';
+      back.style.cssText += 'background:transparent;border-color:' + C.border + ';margin-top:4px;';
+      back.textContent = '← Retour';
+      back.addEventListener('click', () => { body.innerHTML = ''; renderCategories(); });
+      resultsDiv.appendChild(back);
+
+      body.innerHTML = '';
+      body.appendChild(resultsDiv);
+      setStatus('ok', `✓ ${result.count} souvenir(s) trouvé(s)`);
+    } catch (err) {
+      setStatus('err', `✗ MMM: ${err.message}`);
+    }
+  }
+
+  function handleMMMStats() {
+    setStatus('loading', '⏳ Stats MMM…');
+    GM_xmlhttpRequest({
+      method: 'GET',
+      url: `${API_ENDPOINT}/mmm/stats`,
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      timeout: 10000,
+      onload: (r) => {
+        try {
+          const d = JSON.parse(r.responseText);
+          const srcStr = Object.entries(d.sources || {}).map(([k, v]) => `${k}:${v}`).join(' ');
+          setStatus('ok', `MMM: ${d.total_indexed} indexés — ${srcStr || 'vide'}`);
+        } catch (e) { setStatus('err', '✗ Stats indisponibles'); }
+      },
+      onerror: () => setStatus('err', '✗ Network error'),
+    });
+  }
+
   // ─── STATUS ──────────────────────────────────────────────────────────────────
   function setStatus(type, msg) {
     const el = document.getElementById('yosh-status');
@@ -193,6 +345,10 @@
       { name: 'Push to YOS',    desc: 'Extraire insights → mémoire active', api: 'push' },
       { name: 'Archive',        desc: 'Verbatim + résumé → YOS Archives',   api: 'archive' },
       { name: 'Push + Archive', desc: 'Insights + verbatim liés',           api: 'push+archive' },
+    ]},
+    { name: 'MMM', icon: '🔮', actions: [
+      { name: 'Recherche',      desc: 'Recherche sémantique dans YOS Memory', fn: handleMMMSearch },
+      { name: 'Stats',          desc: 'Index MMM — archives indexées',        fn: handleMMMStats },
     ]},
     { name: 'CONTENU', icon: '✍️', actions: [
       { name: 'Résumer',        desc: 'Résumé de la conversation',  cmd: 'y.content.summarize' },
@@ -255,7 +411,9 @@
   }
 
   async function handleAction(action) {
-    if (action.api) {
+    if (action.fn) {
+      action.fn();
+    } else if (action.api) {
       const platform = getPlatform();
       const content  = extractContent(platform.sel);
       const title    = document.title.replace(/ - (ChatGPT|Claude|Gemini|Perplexity|Manus).*/, '').trim();
