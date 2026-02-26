@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         YOS Hub
-// @version      3.3.0
+// @version      3.4.0
 // @description  YOS Hub universel — point d'entrée unique pour toutes les fonctionnalités YOS.
 // @author       Yannick Jolliet / Manus AI
 // @match        https://chat.openai.com/*
