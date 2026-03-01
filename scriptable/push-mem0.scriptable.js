@@ -1,8 +1,7 @@
 // Y-OS Push to Mem0 — Scriptable iOS
-// Version: 3.0.0
+// Version: 3.1.0 — No Alert (compatible loader eval)
 // Déclencheur: Share Sheet (texte ou URL depuis n'importe quelle app iOS)
-// Installation: Scriptable app → + → coller ce code → nommer "Push to Mem0"
-// Usage: Share Sheet depuis ChatGPT/Claude/Grok/Gemini/Perplexity → Scriptable → Push to Mem0
+// Feedback: Notifications iOS uniquement (pas de Alert)
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const CONFIG = {
@@ -10,6 +9,14 @@ const CONFIG = {
   mem0Token: "m0-2M5Fyr4gVUtE0i4tHKfdkYbdDrqBArBiv5c11fUp",
   userId: "yannick-yos"
 };
+
+// ── Notification helper ───────────────────────────────────────────────────────
+function notify(title, body) {
+  const n = new Notification();
+  n.title = title;
+  n.body = body;
+  n.schedule();
+}
 
 // ── Récupérer le texte depuis le Share Sheet ──────────────────────────────────
 let inputText = "";
@@ -22,16 +29,21 @@ if (args.urls && args.urls.length > 0) {
   inputURL = args.urls[0].absoluteString;
 }
 if (args.fileURLs && args.fileURLs.length > 0) {
-  // Fichier texte partagé
   try {
     const fm = FileManager.iCloud();
     inputText = fm.readString(args.fileURLs[0].path);
   } catch (e) {}
 }
 
-// Si rien reçu, lire le presse-papier
+// Fallback presse-papier
 if (!inputText && !inputURL) {
   inputText = Pasteboard.paste() || "";
+}
+
+// ── Valider ───────────────────────────────────────────────────────────────────
+if (!inputText && !inputURL) {
+  notify("Y-OS Mem0 ✗", "Aucun texte reçu. Share du texte depuis une app LLM.");
+  Script.complete();
 }
 
 // ── Détecter la source LLM ───────────────────────────────────────────────────
@@ -48,29 +60,6 @@ function detectSource(text, url) {
 }
 
 const source = detectSource(inputText, inputURL);
-
-// ── Valider le contenu ───────────────────────────────────────────────────────
-if (!inputText && !inputURL) {
-  const alert = new Alert();
-  alert.title = "Y-OS Mem0";
-  alert.message = "Aucun texte reçu. Utilise le Share Sheet depuis une app LLM, ou copie du texte d'abord.";
-  alert.addAction("OK");
-  await alert.present();
-  Script.complete();
-}
-
-// ── Afficher confirmation avant push ─────────────────────────────────────────
-const preview = inputText ? inputText.substring(0, 200) + (inputText.length > 200 ? "..." : "") : inputURL;
-const confirmAlert = new Alert();
-confirmAlert.title = `Push to Mem0 — ${source.toUpperCase()}`;
-confirmAlert.message = `Contenu à indexer :\n\n${preview}`;
-confirmAlert.addAction("Push →");
-confirmAlert.addCancelAction("Annuler");
-
-const confirmed = await confirmAlert.present();
-if (confirmed === -1) {
-  Script.complete();
-}
 
 // ── Push vers le webhook Y-OS ─────────────────────────────────────────────────
 async function pushToWebhook() {
@@ -91,14 +80,13 @@ async function pushToWebhook() {
     const res = await req.loadJSON();
     return res;
   } catch (e) {
-    // Fallback: push directement à Mem0
     return await pushDirectToMem0();
   }
 }
 
 async function pushDirectToMem0() {
   const messages = [{ role: "user", content: inputText || inputURL }];
-  
+
   const req = new Request("https://api.mem0.ai/v1/memories/");
   req.method = "POST";
   req.headers = {
@@ -121,35 +109,18 @@ async function pushDirectToMem0() {
   };
 }
 
-// ── Exécuter le push ──────────────────────────────────────────────────────────
-let result;
+// ── Exécuter ──────────────────────────────────────────────────────────────────
 try {
-  result = await pushToWebhook();
+  const result = await pushToWebhook();
+  if (result && result.ok) {
+    const n = result.memories_created || "?";
+    const via = result.fallback ? "direct" : "webhook";
+    notify(`Y-OS Mem0 ✓ — ${source.toUpperCase()}`, `${n} mémoire(s) indexée(s) [${via}]`);
+  } else {
+    notify("Y-OS Mem0 ✗", result?.error || "Push échoué");
+  }
 } catch (e) {
-  const errAlert = new Alert();
-  errAlert.title = "Erreur";
-  errAlert.message = `Push échoué : ${e.message}`;
-  errAlert.addAction("OK");
-  await errAlert.present();
-  Script.complete();
-}
-
-// ── Notification de succès ────────────────────────────────────────────────────
-if (result && result.ok) {
-  const n = result.memories_created || "?";
-  const fallbackNote = result.fallback ? " (direct Mem0)" : " (via webhook)";
-  
-  const successAlert = new Alert();
-  successAlert.title = "✓ Mem0 — Indexé";
-  successAlert.message = `${n} mémoire(s) créée(s) depuis ${source.toUpperCase()}${fallbackNote}`;
-  successAlert.addAction("OK");
-  await successAlert.present();
-} else {
-  const errAlert = new Alert();
-  errAlert.title = "Erreur Mem0";
-  errAlert.message = result?.error || "Push échoué";
-  errAlert.addAction("OK");
-  await errAlert.present();
+  notify("Y-OS Mem0 ✗", `Erreur : ${e.message}`);
 }
 
 Script.complete();
