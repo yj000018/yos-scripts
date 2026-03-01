@@ -3,7 +3,7 @@
 // ▶ Il télécharge et met à jour push-mem0.scriptable.js automatiquement
 // ▶ Zéro intervention manuelle pour les mises à jour futures
 
-const GITHUB_RAW = "https://raw.githubusercontent.com/yj000018/yos-scripts/main/scriptable/push-mem0.scriptable.js";
+const GITHUB_RAW = "https://raw.githubusercontent.com/yj000018/yos-scripts/master/scriptable/push-mem0.scriptable.js";
 const CACHE_NAME = "push-mem0-cache"; // nom du script caché dans Scriptable
 
 // ── Mise à jour silencieuse en arrière-plan ──────────────────────────────────
