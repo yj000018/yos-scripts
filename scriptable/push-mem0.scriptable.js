@@ -1,15 +1,16 @@
-// Y-OS Push to Mem0 v6.2 — Parseur ChatGPT iOS + notification robuste
+// Y-OS Push to Mem0 v6.3 — Webhook Fly.io + fallback direct Mem0
 // GitHub: yj000018/yos-scripts — scriptable/push-mem0.scriptable.js
 // NE PAS INSTALLER DIRECTEMENT — utiliser push-mem0-loader.scriptable.js
-// Corrections v6.2 :
-//   - Notification de progression immédiate (confirme que le script tourne)
-//   - Parseur ChatGPT iOS étendu : tirets longs Unicode, em-dashes, blocs alternés
-//   - Indicateur version + embeddings créés dans la notification finale
-//   - Gestion d'erreur renforcée à chaque étape critique
+// Nouveautés v6.3 :
+//   - Route principale : webhook Fly.io (https://yos-push-webhook.fly.dev/push)
+//   - Fallback automatique vers Mem0 direct si webhook indisponible
+//   - Notification indique la route utilisée (webhook vs direct)
+//   - Token Mem0 lu depuis le script (fallback) ou via webhook (principal)
 
-const VERSION = "6.2";
+const VERSION = "6.3";
 const MEM0_TOKEN = "m0-2M5Fyr4gVUtE0i4tHKfdkYbdDrqBArBiv5c11fUp";
 const USER_ID = "yannick";
+const WEBHOOK_URL = "https://yos-push-webhook.fly.dev/push";
 
 // ── Point d'entrée appelé par le loader ──────────────────────────────────────
 async function run(injectedArgs) {
@@ -53,13 +54,52 @@ async function run(injectedArgs) {
   const msgCount = messages.length;
   const isMultiTurn = msgCount > 1;
 
-  // ── Notification de progression (confirme que le script est actif) ──────────
+  // ── Notification de progression ─────────────────────────────────────────────
   await notify(
     "⏳ Y-OS Mem0 v" + VERSION + " — " + source.toUpperCase(),
-    msgCount + " tour(s) détecté(s) · envoi vers Mem0…"
+    msgCount + " tour(s) détecté(s) · envoi…"
   );
 
-  // ── Push to Mem0 ────────────────────────────────────────────────────────────
+  // ── Route 1 : Webhook Fly.io (enrichissement avant Mem0) ────────────────────
+  const webhookResult = await pushViaWebhook(rawText || rawURL, source, rawURL, msgCount);
+
+  if (webhookResult.ok) {
+    const memCount = webhookResult.memories_created || 0;
+    const label = isMultiTurn ? msgCount + " tours" : "1 bloc";
+    await notify(
+      "✅ Y-OS Mem0 v" + VERSION + " — " + source.toUpperCase(),
+      "🔗 webhook · " + memCount + " mémoire(s) · " + label
+    );
+    return;
+  }
+
+  // ── Route 2 : Fallback direct Mem0 si webhook indisponible ──────────────────
+  await pushDirectMem0(messages, source, rawURL, msgCount, isMultiTurn);
+}
+
+// ── Push via webhook Fly.io ───────────────────────────────────────────────────
+async function pushViaWebhook(text, source, url, turns) {
+  try {
+    const req = new Request(WEBHOOK_URL);
+    req.method = "POST";
+    req.headers = { "Content-Type": "application/json" };
+    req.body = JSON.stringify({
+      text,
+      source,
+      url: url || "",
+      user_id: USER_ID,
+      metadata: { version: VERSION, turns, source }
+    });
+    req.timeoutInterval = 20;
+    const res = await req.loadJSON();
+    return res && res.ok ? res : { ok: false };
+  } catch(e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+// ── Push direct Mem0 (fallback) ───────────────────────────────────────────────
+async function pushDirectMem0(messages, source, rawURL, msgCount, isMultiTurn) {
   const req = new Request("https://api.mem0.ai/v1/memories/");
   req.method = "POST";
   req.headers = {
@@ -74,7 +114,8 @@ async function run(injectedArgs) {
       url: rawURL,
       turns: msgCount,
       version: VERSION,
-      multi_turn: isMultiTurn
+      multi_turn: isMultiTurn,
+      route: "direct"
     }
   });
   req.timeoutInterval = 25;
@@ -88,8 +129,8 @@ async function run(injectedArgs) {
     await notify(
       "✅ Y-OS Mem0 v" + VERSION + " — " + source.toUpperCase(),
       isPending
-        ? label + " → " + memCount + " embedding(s) · indexation ~30s"
-        : memCount + " mémoire(s) créée(s) · " + label
+        ? "⚡ direct · " + label + " → " + memCount + " embedding(s) ~30s"
+        : "⚡ direct · " + memCount + " mémoire(s) · " + label
     );
   } catch (e) {
     await notify(
@@ -138,7 +179,6 @@ function parseConversation(text, source) {
   }
 
   // 2. Séparateurs ChatGPT iOS : tirets longs Unicode, em-dashes, lignes de tirets
-  // ChatGPT iOS utilise souvent ─── (U+2500) ou — ou --- pour séparer les tours
   const chatgptSepRe = /\n[─═—\-]{3,}\n|\n{3,}/g;
   const chatgptBlocks = text.split(chatgptSepRe).map(b => b.trim()).filter(b => b.length > 15);
   if (chatgptBlocks.length >= 2) {
@@ -149,7 +189,6 @@ function parseConversation(text, source) {
   }
 
   // 3. Pattern ChatGPT iOS sans séparateurs : alternance paragraphes courts/longs
-  // Questions utilisateur = courts (<250 chars), réponses = longs (>250 chars)
   if (source === "chatgpt" && text.length > 400) {
     const paragraphs = text.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 10);
     if (paragraphs.length >= 2) {
