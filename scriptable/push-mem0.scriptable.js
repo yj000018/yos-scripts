@@ -1,24 +1,27 @@
 // Y-OS Push to Mem0 v6.4 — Preview mémoire dans notification
 // GitHub: yj000018/yos-scripts — scriptable/push-mem0.scriptable.js
 // NE PAS INSTALLER DIRECTEMENT — utiliser push-mem0-loader.scriptable.js
-// Nouveautés v6.4 :
-//   - Notification webhook affiche un extrait du contenu indexé (preview)
-//   - Webhook v1.1.0 retourne preview = premier message user (120 chars)
+// Nouveautés v6.5 :
+//   - Compatible eval() depuis Share Sheet (lecture via globalThis._yosInputText)
+//   - Loader v1.2 injecte le texte partagé avant eval
 
-const VERSION = "6.4";
+const VERSION = "6.5";
 const MEM0_TOKEN = "m0-2M5Fyr4gVUtE0i4tHKfdkYbdDrqBArBiv5c11fUp";
 const USER_ID = "yannick";
 const WEBHOOK_URL = "https://yos-push-webhook.fly.dev/push";
 
-// ── Point d'entrée appelé par le loader ──────────────────────────────────────
+// ── Point d'entrée : compatible eval() (Share Sheet) et importModule() ────────
 async function run(injectedArgs) {
   const _args = injectedArgs || args;
 
   // ── Input ───────────────────────────────────────────────────────────────────
-  let rawText = _args.plainTexts?.[0] || "";
+  // Priorité 1 : texte injecté par le loader v1.2 via globalThis (Share Sheet eval)
+  let rawText = (typeof globalThis._yosInputText === "string" && globalThis._yosInputText.trim())
+    ? globalThis._yosInputText
+    : (_args.plainTexts?.[0] || "");
   let rawURL  = _args.urls?.[0]?.absoluteString || "";
 
-  // Fallback clipboard si Share Sheet vide
+  // Fallback clipboard si tout est vide
   if (!rawText && !rawURL) {
     try { rawText = Pasteboard.paste() || ""; } catch(e) {}
   }
@@ -240,5 +243,20 @@ async function notify(title, body) {
   }
 }
 
-// ── Export pour importModule() ────────────────────────────────────────────────
-module.exports = { run, VERSION };
+// ── Export pour importModule() ────────────────────────────────────────────
+if (typeof module !== "undefined") module.exports = { run, VERSION };
+
+// ── Auto-exécution quand appelé via eval() depuis le loader v1.2 ──────────────
+// Le loader injecte globalThis._yosInputText avant eval()
+// On détecte le contexte eval en vérifiant l'absence de module.exports natif
+if (typeof globalThis._yosLoaderVersion !== "undefined") {
+  // Appelé depuis le loader via eval — exécuter run() directement
+  run(args).catch(async (e) => {
+    try {
+      const n = new Notification();
+      n.title = "❌ Y-OS v" + VERSION + " — Fatal";
+      n.body = String(e.message || e).substring(0, 120);
+      await n.schedule();
+    } catch(_) {}
+  });
+}

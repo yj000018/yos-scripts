@@ -1,70 +1,82 @@
-// Y-OS Mem0 Loader v1.1 — Auto-update depuis GitHub
+// Y-OS Memory Bridge — Loader v1.2
 // ▶ CE fichier est le seul à installer dans Scriptable (Share Sheet activé)
-// ▶ Il télécharge et met à jour push-mem0.scriptable.js automatiquement
-// ▶ Corrections v1.1 :
-//   - FileManager.local() au lieu d'iCloud (évite les échecs si iCloud Drive désactivé)
-//   - Notification d'erreur explicite si cache absent après tentative de download
-//   - Messages d'erreur plus précis pour faciliter le debug
+// ▶ Corrections v1.2 :
+//   - eval() au lieu de importModule() — seule méthode fiable depuis Share Sheet
+//   - Keychain pour le cache — accessible depuis tous les contextes Scriptable
+//   - Injection du texte partagé via globalThis._yosInputText
 
 const GITHUB_RAW = "https://raw.githubusercontent.com/yj000018/yos-scripts/main/scriptable/push-mem0.scriptable.js";
-const CACHE_NAME = "push-mem0-cache"; // nom du script dans Scriptable
+const CACHE_KEY = "yos_push_mem0_cache_v6";
+const LOADER_VERSION = "1.2";
 
-// ── Mise à jour du cache depuis GitHub ───────────────────────────────────────
-async function updateCache() {
-  try {
-    const req = new Request(GITHUB_RAW);
-    req.timeoutInterval = 10;
-    const code = await req.loadString();
-    if (code && code.includes("module.exports")) {
-      const fm = FileManager.local();
-      const dir = fm.documentsDirectory();
-      const path = fm.joinPath(dir, CACHE_NAME + ".js");
-      fm.writeString(path, code);
-      return true;
-    }
-  } catch (e) {
-    // Silencieux — on utilisera le cache existant si disponible
-  }
-  return false;
+// ── Notification d'erreur ─────────────────────────────────────────────────────
+async function notifyError(title, body) {
+  const n = new Notification();
+  n.title = title;
+  n.body = body;
+  await n.schedule();
 }
 
-// ── Vérifier que le cache existe ─────────────────────────────────────────────
-function cacheExists() {
+// ── Télécharger le script principal depuis GitHub ─────────────────────────────
+async function fetchScript() {
   try {
-    const fm = FileManager.local();
-    const dir = fm.documentsDirectory();
-    const path = fm.joinPath(dir, CACHE_NAME + ".js");
-    return fm.fileExists(path);
+    const req = new Request(GITHUB_RAW);
+    req.timeoutInterval = 12;
+    const code = await req.loadString();
+    if (code && code.length > 200) {
+      Keychain.set(CACHE_KEY, code);
+      return code;
+    }
+    throw new Error("Réponse GitHub vide ou trop courte");
   } catch (e) {
-    return false;
+    // Fallback cache Keychain
+    if (Keychain.contains(CACHE_KEY)) {
+      return Keychain.get(CACHE_KEY);
+    }
+    throw new Error("Réseau indisponible + cache absent: " + e.message);
   }
+}
+
+// ── Récupérer le texte d'entrée (Share Sheet ou clipboard) ───────────────────
+function getInputText() {
+  if (args.plainTexts && args.plainTexts.length > 0 && args.plainTexts[0].trim()) {
+    return args.plainTexts[0];
+  }
+  if (args.urls && args.urls.length > 0) {
+    return args.urls[0];
+  }
+  // Fallback clipboard
+  const clip = Pasteboard.paste();
+  return clip || "";
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
-// 1. Mise à jour du cache (non-bloquante si offline)
-const updated = await updateCache();
+async function main() {
+  const inputText = getInputText();
 
-// 2. Vérifier que le cache est disponible
-if (!cacheExists()) {
-  let n = new Notification();
-  n.title = "Y-OS Mem0 — Erreur loader v1.1";
-  n.body  = updated
-    ? "Cache écrit mais introuvable. Vérifier les permissions Scriptable."
-    : "Cache absent + pas de connexion. Vérifier internet.";
-  await n.schedule();
+  // Télécharger / mettre à jour le script principal
+  let code;
+  try {
+    code = await fetchScript();
+  } catch (e) {
+    await notifyError("❌ Y-OS Loader v" + LOADER_VERSION, e.message);
+    Script.complete();
+    return;
+  }
+
+  // Injecter les variables globales avant eval
+  // Le script principal lit globalThis._yosInputText et globalThis._yosLoaderVersion
+  globalThis._yosInputText = inputText;
+  globalThis._yosLoaderVersion = LOADER_VERSION;
+
+  // Exécuter le script principal via eval (compatible Share Sheet)
+  try {
+    eval(code); // eslint-disable-line no-eval
+  } catch (e) {
+    await notifyError("❌ Y-OS Script Error v" + LOADER_VERSION, String(e.message || e).substring(0, 120));
+  }
+
   Script.complete();
-  return;
 }
 
-// 3. Importer et exécuter le script principal
-try {
-  const main = importModule(CACHE_NAME);
-  await main.run(args);
-} catch (e) {
-  let n = new Notification();
-  n.title = "Y-OS Mem0 — Erreur loader v1.1";
-  n.body  = String(e.message || e).substring(0, 150);
-  await n.schedule();
-}
-
-Script.complete();
+await main();
