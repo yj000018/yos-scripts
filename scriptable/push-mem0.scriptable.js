@@ -1,13 +1,11 @@
-// Y-OS Push to Mem0 v6.3 — Webhook Fly.io + fallback direct Mem0
+// Y-OS Push to Mem0 v6.4 — Preview mémoire dans notification
 // GitHub: yj000018/yos-scripts — scriptable/push-mem0.scriptable.js
 // NE PAS INSTALLER DIRECTEMENT — utiliser push-mem0-loader.scriptable.js
-// Nouveautés v6.3 :
-//   - Route principale : webhook Fly.io (https://yos-push-webhook.fly.dev/push)
-//   - Fallback automatique vers Mem0 direct si webhook indisponible
-//   - Notification indique la route utilisée (webhook vs direct)
-//   - Token Mem0 lu depuis le script (fallback) ou via webhook (principal)
+// Nouveautés v6.4 :
+//   - Notification webhook affiche un extrait du contenu indexé (preview)
+//   - Webhook v1.1.0 retourne preview = premier message user (120 chars)
 
-const VERSION = "6.3";
+const VERSION = "6.4";
 const MEM0_TOKEN = "m0-2M5Fyr4gVUtE0i4tHKfdkYbdDrqBArBiv5c11fUp";
 const USER_ID = "yannick";
 const WEBHOOK_URL = "https://yos-push-webhook.fly.dev/push";
@@ -66,9 +64,10 @@ async function run(injectedArgs) {
   if (webhookResult.ok) {
     const memCount = webhookResult.memories_created || 0;
     const label = isMultiTurn ? msgCount + " tours" : "1 bloc";
+    const preview = webhookResult.preview ? " · \"" + webhookResult.preview.substring(0, 80) + "\"" : "";
     await notify(
       "✅ Y-OS Mem0 v" + VERSION + " — " + source.toUpperCase(),
-      "🔗 webhook · " + memCount + " mémoire(s) · " + label
+      "🔗 webhook · " + memCount + " mémoire(s) · " + label + preview
     );
     return;
   }
