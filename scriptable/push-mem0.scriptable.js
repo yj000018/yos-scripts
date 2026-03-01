@@ -2,7 +2,7 @@
 // Coller directement dans Scriptable. Activer "Show in Share Sheet".
 
 const MEM0_TOKEN = "m0-2M5Fyr4gVUtE0i4tHKfdkYbdDrqBArBiv5c11fUp";
-const USER_ID = "yannick-yos";
+const USER_ID = "yannick";
 
 // ── Input ─────────────────────────────────────────────────────────────────────
 let text = args.plainTexts?.[0] || "";
