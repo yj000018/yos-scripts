@@ -1,7 +1,7 @@
 # Y-OS Memory Bridge — Architecture & Chaîne de mise à jour
 
-**Version :** 2.2  
-**Dernière mise à jour :** Mars 2026  
+**Version :** 2.3  
+**Dernière mise à jour :** 1 Mars 2026  
 **Auteur système :** Manus (architecte cognitif Y-OS)  
 **Propriétaire :** Yannick — Y-OS Cognitive Operating System
 
@@ -49,7 +49,7 @@ Web Dashboard (yosmembridge-xedjekw3.manus.space)
 | Propriété | Valeur |
 |---|---|
 | **Fichier** | `scriptable/push-mem0-loader.scriptable.js` |
-| **URL GitHub** | `https://raw.githubusercontent.com/yj000018/yos-scripts/master/scriptable/push-mem0-loader.scriptable.js` |
+| **URL GitHub** | `https://raw.githubusercontent.com/yj000018/yos-scripts/main/scriptable/push-mem0-loader.scriptable.js` |
 | **Nom dans Scriptable** | `Push to Mem0` |
 | **Share Sheet** | Activé |
 | **Dernière installation** | Unique — jamais à refaire |
@@ -59,7 +59,7 @@ Web Dashboard (yosmembridge-xedjekw3.manus.space)
 
 1. Contacte GitHub Raw → télécharge `push-mem0.scriptable.js`
 2. Vérifie que le contenu contient `module.exports` (validation minimale)
-3. Écrit en cache local : `push-mem0-cache.js` dans le dossier Scriptable iCloud
+3. Écrit en cache local : `push-mem0-cache.js` via `FileManager.local()` (pas iCloud — évite les échecs silencieux)
 4. Importe via `importModule("push-mem0-cache")` — pas `eval()`
 5. Appelle `main.run(args)` en passant les arguments Share Sheet
 6. Si GitHub inaccessible (offline) → utilise le cache existant sans erreur
@@ -69,19 +69,20 @@ Web Dashboard (yosmembridge-xedjekw3.manus.space)
 | Propriété | Valeur |
 |---|---|
 | **Fichier** | `scriptable/push-mem0.scriptable.js` |
-| **URL GitHub** | `https://raw.githubusercontent.com/yj000018/yos-scripts/master/scriptable/push-mem0.scriptable.js` |
-| **Version actuelle** | 6.0 |
+| **URL GitHub** | `https://raw.githubusercontent.com/yj000018/yos-scripts/main/scriptable/push-mem0.scriptable.js` |
+| **Version actuelle** | 6.2 |
 | **Responsable mise à jour** | **Manus uniquement** |
 | **Déploiement** | Automatique — aucune action Yannick |
 
-**Fonctionnalités v6.0 :**
+**Fonctionnalités v6.2 :**
 
 - Détection source LLM (chatgpt, claude, grok, gemini, perplexity, manus, unknown)
-- Parseur conversation multi-format : `Human/Assistant`, `You/ChatGPT`, `Vous/Claude`, `User/Assistant`, `Moi/[LLM]`
+- Parseur conversation multi-format : labels explicites → séparateurs ChatGPT iOS (Unicode ─, em-dash —) → alternance court/long → paragraphes → fallback
 - Envoi à Mem0 sous forme de tableau `messages[]` avec rôles alternés user/assistant
-- Métadonnées : `source`, `url`, `turns`, `version`
-- Notification iOS : confirmation avec nombre de tours détectés
-- Fallback : si aucun pattern détecté, envoi en `user` message unique
+- Métadonnées : `source`, `url`, `turns`, `version`, `multi_turn`
+- Notification de progression immédiate (confirme que le script est actif)
+- Notification finale : version + nombre d'embeddings créés + statut indexation
+- Gestion d'erreur renforcée à chaque étape critique
 
 ### 3.3 Mem0 Cloud
 
@@ -176,14 +177,26 @@ Yannick : 1 copier-coller dans Scriptable (5 minutes, une seule fois)
 
 ## 6. Sécurité et credentials
 
-| Donnée | Stockage | Responsable |
-|---|---|---|
-| Token Mem0 API | Dans le script GitHub (repo public) | Manus — rotation si compromis |
-| GitHub PAT | Utilisé ponctuellement, jamais persisté | Yannick fournit sur demande |
-| Credentials personnels | 1Password uniquement | Yannick |
-| Mémoires Mem0 | Contexte sémantique uniquement | Architecture rule |
+### 6.1 Architecture secrets — opérationnel depuis Mar 1, 2026
+
+**1Password Service Account** : Manus lit tous les secrets depuis 1Password de façon autonome via le CLI `op` v2.32.1. Le token Service Account est stocké dans Manus Custom API connector sous `OP_SERVICE_ACCOUNT_TOKEN` — injecté automatiquement dans chaque session sandbox.
+
+**Commande type :**
+```bash
+op item get "NOM_ITEM" --vault "MAIN VAULT" --fields "NOM_CHAMP" --reveal
+```
+
+| Donnée | Stockage | Accès Manus | Responsable rotation |
+|---|---|---|---|
+| Token Mem0 API | 1Password — `Mem0 — yOS-MEM0-MCP-2026-03` | Autonome via `op` | Yannick (si expiré) |
+| GitHub PAT | 1Password — `GitHub API Token - PAT` | Autonome via `op` | Yannick (si expiré) |
+| 1P Service Account Token | Manus Custom API connector (`OP_SERVICE_ACCOUNT_TOKEN`) | Injecté automatiquement | Yannick (si révoqué) |
+| Credentials personnels | 1Password uniquement | Via `op` si nécessaire | Yannick |
+| Mémoires Mem0 | Contexte sémantique uniquement | — | Architecture rule |
 
 > **Règle non négociable :** aucun credential, token d'accès, ou clé API ne doit jamais être poussé dans Mem0 comme mémoire. Mem0 = contexte cognitif uniquement.
+
+> **Règle opérationnelle :** Manus ne demande jamais de clé ou mot de passe à Yannick. Il lit depuis 1Password de façon autonome.
 
 ---
 
@@ -193,8 +206,8 @@ Yannick : 1 copier-coller dans Scriptable (5 minutes, une seule fois)
 |---|---|
 | Dashboard Y-OS | https://yosmembridge-xedjekw3.manus.space |
 | Repo GitHub scripts | https://github.com/yj000018/yos-scripts |
-| Script loader (raw) | https://raw.githubusercontent.com/yj000018/yos-scripts/master/scriptable/push-mem0-loader.scriptable.js |
-| Script principal (raw) | https://raw.githubusercontent.com/yj000018/yos-scripts/master/scriptable/push-mem0.scriptable.js |
+| Script loader (raw) | https://raw.githubusercontent.com/yj000018/yos-scripts/main/scriptable/push-mem0-loader.scriptable.js |
+| Script principal (raw) | https://raw.githubusercontent.com/yj000018/yos-scripts/main/scriptable/push-mem0.scriptable.js |
 | Mem0 API docs | https://docs.mem0.ai |
 
 ---
@@ -210,6 +223,7 @@ Yannick : 1 copier-coller dans Scriptable (5 minutes, une seule fois)
 | v2.0 | Fév 2026 | Webhook Fly.io, script Tampermonkey, script Scriptable v4 |
 | v2.1 | Mar 2026 | Dashboard auto-refresh 30s, Scriptable v5 parseur multi-tours |
 | v2.2 | Mar 2026 | Loader auto-update (bootstrap + importModule), Scriptable v6 |
+| v2.3 | 1 Mar 2026 | 1Password Service Account autonome, Loader v1.1 (FileManager.local), Script v6.2 (parseur ChatGPT iOS, notification robuste) |
 
 ---
 
