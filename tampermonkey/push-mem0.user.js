@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Y-OS Push to Mem0
 // @namespace    https://yos.ai
-// @version      3.0.0
+// @version      3.1.0
 // @description  Push any LLM conversation to Mem0 memory system with 1 click
 // @author       Yannick — Y-OS
 // @match        https://chatgpt.com/*
@@ -31,7 +31,7 @@
   const CONFIG = {
     webhook: "https://yos-push-webhook.fly.dev/push",
     mem0Token: "m0-2M5Fyr4gVUtE0i4tHKfdkYbdDrqBArBiv5c11fUp",
-    userId: "yannick-yos",
+    userId: "yannick",
     buttonId: "yos-mem0-btn",
     toastId: "yos-mem0-toast"
   };
