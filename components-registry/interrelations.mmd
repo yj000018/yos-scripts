@@ -1,0 +1,87 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1a1a2e', 'primaryTextColor': '#e0e0e0', 'primaryBorderColor': '#4a4a8a', 'lineColor': '#6a6aaa', 'secondaryColor': '#16213e', 'tertiaryColor': '#0f3460'}}}%%
+
+graph TD
+    subgraph L1["⬡ Layer 1 — Primitives"]
+        PL["sel-picklist\nPickList Selector"]
+        TP["sel-tagpicker\nTag Picker"]
+        CB["int-codeblock\nCode Block"]
+        BG["int-badge\nBadge"]
+    end
+
+    subgraph L2["⬡ Layer 2 — Renderers"]
+        MM["viz-mermaid-themed\nMermaid Themed ★"]
+        D2["viz-d2-renderer\nD2 Renderer"]
+        TV["nav-treeview\nTreeView"]
+        TL["dat-timeline\nTimeline"]
+        MMM["cog-mmm\nMind Map Manus"]
+        NB["sys-notion-block\nNotion Block"]
+    end
+
+    subgraph L3["⬡ Layer 3 — Composites"]
+        DB["dat-dashboard\nDashboard"]
+        CM["cog-concept-map\nConcept Map"]
+        RP["dat-report\nReport Builder"]
+    end
+
+    subgraph L4["⬡ Layer 4 — Workflows"]
+        WF1["wf-session-synthesis\nSession Synthesis"]
+        WF2["wf-project-report\nProject Report"]
+    end
+
+    subgraph EXT["⬡ Systèmes Externes"]
+        NT["Notion\nMemory Hub"]
+        GH["GitHub\nyos-components"]
+        SK["Skills\nRegistry"]
+        N8N["n8n\nAutomation"]
+    end
+
+    %% Layer 1 → Layer 3
+    PL --> DB
+    TP --> DB
+    BG --> DB
+    CB --> RP
+
+    %% Layer 2 → Layer 3
+    MM --> RP
+    MM --> CM
+    TV --> RP
+    TL --> RP
+    TL --> DB
+    MMM --> CM
+
+    %% Layer 3 → Layer 4
+    DB --> WF1
+    RP --> WF2
+    CM --> WF2
+
+    %% System integrations
+    NB -.->|"MCP"| NT
+    WF1 -.->|"archive"| NT
+    WF2 -.->|"archive"| NT
+    MM -.->|"skill"| SK
+    TV -.->|"skill"| SK
+    MMM -.->|"skill"| SK
+
+    %% Git source
+    GH -.->|"loader"| MM
+    GH -.->|"loader"| MMM
+    GH -.->|"loader"| TV
+
+    %% n8n automation
+    N8N -.->|"sync"| NT
+    N8N -.->|"trigger"| WF2
+
+    %% Styles
+    classDef primitive fill:#1a3a5c,stroke:#4a7aac,color:#e0e0e0
+    classDef renderer fill:#1a4a3a,stroke:#4aaa7a,color:#e0e0e0
+    classDef composite fill:#3a2a5c,stroke:#7a5aac,color:#e0e0e0
+    classDef workflow fill:#5c2a2a,stroke:#ac5a5a,color:#e0e0e0
+    classDef external fill:#2a2a2a,stroke:#6a6a6a,color:#aaaaaa,stroke-dasharray: 5 5
+    classDef highlight fill:#2a4a1a,stroke:#6aaa3a,color:#e0e0e0,stroke-width:3px
+
+    class PL,TP,CB,BG primitive
+    class TV,TL,D2,NB renderer
+    class MMM,MM highlight
+    class DB,CM,RP composite
+    class WF1,WF2 workflow
+    class NT,GH,SK,N8N external

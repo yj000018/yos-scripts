@@ -1,0 +1,37 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1a1a2e', 'primaryTextColor': '#e0e0e0', 'primaryBorderColor': '#4a4a8a', 'lineColor': '#6a6aaa', 'secondaryColor': '#16213e'}}}%%
+
+sequenceDiagram
+    participant Y as Yannick / Session Manus
+    participant SK as Skill (local)
+    participant CA as Cache /tmp/yos-components
+    participant GH as GitHub yos-components
+    participant NT as Notion Registry
+
+    Note over Y,NT: Scénario 1 — Premier appel (cache vide)
+    
+    Y->>SK: load_component("viz-mermaid-themed")
+    SK->>CA: Check cache
+    CA-->>SK: Cache MISS
+    SK->>GH: git clone --sparse viz/mermaid-themed/
+    GH-->>CA: Code v1.2.0
+    CA-->>SK: Loaded
+    SK-->>Y: Component ready
+    Y->>Y: component.render(code, theme)
+
+    Note over Y,NT: Scénario 2 — Appel suivant (cache chaud)
+    
+    Y->>SK: load_component("viz-mermaid-themed")
+    SK->>CA: Check cache (TTL 24h)
+    CA-->>SK: Cache HIT ✓
+    SK-->>Y: Component ready (instant)
+    Y->>Y: component.render(code, theme)
+
+    Note over Y,NT: Scénario 3 — Publication nouveau composant
+    
+    Y->>SK: Développement local
+    SK->>SK: Tests validés
+    SK->>GH: git commit + tag "cog-mmm/v1.0.0"
+    GH-->>GH: CI/CD tests
+    SK->>NT: Update fiche composant
+    NT-->>Y: ✅ Composant publié
+    SK->>CA: Invalidate cache

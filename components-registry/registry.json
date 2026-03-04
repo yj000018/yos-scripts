@@ -1,0 +1,213 @@
+{
+  "_meta": {
+    "schema_version": "1.0.0",
+    "registry_version": "0.1.0",
+    "last_updated": "2026-03-04",
+    "author": "Manus",
+    "project": "yOS Components Registry",
+    "repo": "https://github.com/yannick/yos-components",
+    "notion_hub": "https://notion.so/yos-components-registry"
+  },
+  "categories": {
+    "VIZ": "Visualization — Rendu graphique de données",
+    "NAV": "Navigation — Exploration de structures",
+    "SEL": "Selection — Choix et filtrage",
+    "DAT": "Data Display — Présentation structurée",
+    "COG": "Cognitive — Outils de pensée",
+    "INT": "Interaction — Éléments d'interface",
+    "SYS": "Integration — Connecteurs systèmes"
+  },
+  "layers": {
+    "1": "Primitives — Unités atomiques",
+    "2": "Renderers — Transformation data → visuel",
+    "3": "Composites — Assemblages de primitives",
+    "4": "Workflows — Séquences orchestrées"
+  },
+  "statuses": ["draft", "beta", "stable", "deprecated", "archived"],
+  "components": [
+    {
+      "id": "viz-mermaid-themed",
+      "name": "Mermaid Themed Renderer",
+      "category": "VIZ",
+      "layer": 2,
+      "version": "0.9.0",
+      "status": "beta",
+      "priority": "P0",
+      "tags": ["diagram", "visualization", "mermaid", "themed", "svg"],
+      "description": "Rendu de diagrammes Mermaid avec thème yOS personnalisé (dark/light/custom). Produit SVG ou PNG.",
+      "path": "components/viz/mermaid-themed/",
+      "entry": "components/viz/mermaid-themed/index.py",
+      "schema": "components/viz/mermaid-themed/schema.json",
+      "skill": "skills/mermaid-themed-skill/SKILL.md",
+      "dependencies": [],
+      "interfaces": {
+        "inputs": ["mermaid_code: str", "theme: str = 'dark'", "output_format: str = 'svg'"],
+        "outputs": ["svg: str", "png_path: str | None", "error: str | None"]
+      },
+      "created": "2025-11-15",
+      "updated": "2026-02-20",
+      "notes": "Composant de référence — premier composant yOS formellement documenté"
+    },
+    {
+      "id": "cog-mmm",
+      "name": "MMM — Mind Map Manus",
+      "category": "COG",
+      "layer": 2,
+      "version": "0.1.0",
+      "status": "draft",
+      "priority": "P0",
+      "tags": ["mindmap", "cognitive", "visualization", "thinking"],
+      "description": "Générateur de mind maps interactifs depuis structure JSON ou texte libre. Thème yOS.",
+      "path": "components/cog/mmm/",
+      "entry": "components/cog/mmm/index.py",
+      "schema": "components/cog/mmm/schema.json",
+      "skill": null,
+      "dependencies": [],
+      "interfaces": {
+        "inputs": ["content: str | dict", "theme: str = 'dark'", "depth: int = 3"],
+        "outputs": ["html: str", "json_tree: dict", "error: str | None"]
+      },
+      "created": "2026-03-04",
+      "updated": "2026-03-04",
+      "notes": "À développer — priorité haute pour sessions de pensée structurée"
+    },
+    {
+      "id": "nav-treeview",
+      "name": "TreeView Navigator",
+      "category": "NAV",
+      "layer": 2,
+      "version": "0.1.0",
+      "status": "draft",
+      "priority": "P1",
+      "tags": ["tree", "navigation", "hierarchy", "explorer"],
+      "description": "Affichage et navigation dans des structures arborescentes (fichiers, taxonomies, org charts).",
+      "path": "components/nav/treeview/",
+      "entry": "components/nav/treeview/index.py",
+      "schema": "components/nav/treeview/schema.json",
+      "skill": null,
+      "dependencies": [],
+      "interfaces": {
+        "inputs": ["tree_data: dict", "expandable: bool = True", "theme: str = 'dark'"],
+        "outputs": ["html: str", "ascii: str", "error: str | None"]
+      },
+      "created": "2026-03-04",
+      "updated": "2026-03-04",
+      "notes": "Utile pour navigation dans registry lui-même et dans structures Notion"
+    },
+    {
+      "id": "sel-picklist",
+      "name": "PickList Selector",
+      "category": "SEL",
+      "layer": 1,
+      "version": "0.1.0",
+      "status": "draft",
+      "priority": "P1",
+      "tags": ["selection", "list", "picker", "filter"],
+      "description": "Composant de sélection dans une liste d'options avec filtrage, multi-select et recherche.",
+      "path": "components/sel/picklist/",
+      "entry": "components/sel/picklist/index.py",
+      "schema": "components/sel/picklist/schema.json",
+      "skill": null,
+      "dependencies": [],
+      "interfaces": {
+        "inputs": ["options: list[str | dict]", "multi: bool = False", "searchable: bool = True"],
+        "outputs": ["selected: list", "error: str | None"]
+      },
+      "created": "2026-03-04",
+      "updated": "2026-03-04",
+      "notes": "Primitive fondamentale — utilisée par de nombreux composants Layer 3"
+    },
+    {
+      "id": "dat-timeline",
+      "name": "Timeline Renderer",
+      "category": "DAT",
+      "layer": 2,
+      "version": "0.1.0",
+      "status": "draft",
+      "priority": "P2",
+      "tags": ["timeline", "chronology", "events", "history"],
+      "description": "Rendu de chronologies et timelines depuis liste d'événements datés.",
+      "path": "components/dat/timeline/",
+      "entry": "components/dat/timeline/index.py",
+      "schema": "components/dat/timeline/schema.json",
+      "skill": null,
+      "dependencies": [],
+      "interfaces": {
+        "inputs": ["events: list[dict]", "orientation: str = 'vertical'", "theme: str = 'dark'"],
+        "outputs": ["html: str", "svg: str", "error: str | None"]
+      },
+      "created": "2026-03-04",
+      "updated": "2026-03-04",
+      "notes": "Utile pour roadmaps, historiques de projets, sessions archivées"
+    },
+    {
+      "id": "sel-tagpicker",
+      "name": "Tag Picker",
+      "category": "SEL",
+      "layer": 1,
+      "version": "0.1.0",
+      "status": "draft",
+      "priority": "P2",
+      "tags": ["tags", "selection", "taxonomy", "labels"],
+      "description": "Sélecteur et créateur de tags avec auto-complétion depuis un référentiel de tags yOS.",
+      "path": "components/sel/tagpicker/",
+      "entry": "components/sel/tagpicker/index.py",
+      "schema": "components/sel/tagpicker/schema.json",
+      "skill": null,
+      "dependencies": [],
+      "interfaces": {
+        "inputs": ["existing_tags: list[str]", "tag_registry: list[str]", "max_tags: int = 10"],
+        "outputs": ["selected_tags: list[str]", "new_tags: list[str]", "error: str | None"]
+      },
+      "created": "2026-03-04",
+      "updated": "2026-03-04",
+      "notes": "Intégration avec tag registry Notion memory-manager"
+    },
+    {
+      "id": "sys-notion-block",
+      "name": "Notion Block Exporter",
+      "category": "SYS",
+      "layer": 2,
+      "version": "0.1.0",
+      "status": "draft",
+      "priority": "P3",
+      "tags": ["notion", "export", "integration", "blocks"],
+      "description": "Conversion de contenu Manus (Markdown, data) en blocs Notion natifs via MCP.",
+      "path": "components/sys/notion-block/",
+      "entry": "components/sys/notion-block/index.py",
+      "schema": "components/sys/notion-block/schema.json",
+      "skill": null,
+      "dependencies": ["notion-mcp"],
+      "interfaces": {
+        "inputs": ["content: str", "format: str = 'markdown'", "target_page_id: str"],
+        "outputs": ["block_ids: list[str]", "page_url: str", "error: str | None"]
+      },
+      "created": "2026-03-04",
+      "updated": "2026-03-04",
+      "notes": "Dépend du MCP Notion — abstraction du skill memory-manager"
+    },
+    {
+      "id": "viz-d2-renderer",
+      "name": "D2 Diagram Renderer",
+      "category": "VIZ",
+      "layer": 2,
+      "version": "0.1.0",
+      "status": "draft",
+      "priority": "P2",
+      "tags": ["diagram", "d2", "architecture", "visualization"],
+      "description": "Rendu de diagrammes D2 (alternative à Mermaid, plus expressif pour architectures complexes).",
+      "path": "components/viz/d2-renderer/",
+      "entry": "components/viz/d2-renderer/index.py",
+      "schema": "components/viz/d2-renderer/schema.json",
+      "skill": null,
+      "dependencies": ["d2-cli"],
+      "interfaces": {
+        "inputs": ["d2_code: str", "theme: str = 'dark'", "layout: str = 'dagre'"],
+        "outputs": ["svg: str", "png_path: str | None", "error: str | None"]
+      },
+      "created": "2026-03-04",
+      "updated": "2026-03-04",
+      "notes": "Complément à viz-mermaid-themed pour diagrammes d'architecture complexes"
+    }
+  ]
+}

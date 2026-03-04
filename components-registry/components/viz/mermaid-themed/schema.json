@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "viz-mermaid-themed",
+  "description": "Renderer Mermaid avec thème yOS canonique",
+  "version": "0.9.0",
+  "component_id": "viz-mermaid-themed",
+  "category": "VIZ",
+  "layer": 2,
+  "status": "beta",
+  "input": {
+    "type": "object",
+    "required": ["mermaid_code"],
+    "properties": {
+      "mermaid_code": {
+        "type": "string",
+        "description": "Code Mermaid valide"
+      },
+      "theme": {
+        "type": "string",
+        "enum": ["yos", "dark", "light", "default"],
+        "default": "yos",
+        "description": "Thème visuel"
+      },
+      "output_format": {
+        "type": "string",
+        "enum": ["svg", "png"],
+        "default": "svg",
+        "description": "Format de sortie"
+      },
+      "title": {
+        "type": "string",
+        "default": "",
+        "description": "Titre du diagramme"
+      },
+      "width": {
+        "type": "integer",
+        "default": 1200,
+        "minimum": 400,
+        "maximum": 4000,
+        "description": "Largeur PNG en pixels"
+      }
+    }
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "svg": {
+        "type": ["string", "null"],
+        "description": "SVG string si output_format=svg"
+      },
+      "png_path": {
+        "type": ["string", "null"],
+        "description": "Chemin PNG si output_format=png"
+      },
+      "error": {
+        "type": ["string", "null"],
+        "description": "Message d'erreur si échec"
+      }
+    }
+  },
+  "dependencies": {
+    "required": ["mermaid-cli (mmdc)"],
+    "optional": ["puppeteer"]
+  },
+  "tags": ["Manus", "yOS", "visualization", "mermaid", "diagram"]
+}

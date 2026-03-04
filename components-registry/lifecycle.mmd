@@ -1,0 +1,31 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1a1a2e', 'primaryTextColor': '#e0e0e0', 'primaryBorderColor': '#4a4a8a', 'lineColor': '#6a6aaa'}}}%%
+
+stateDiagram-v2
+    [*] --> draft : Proposition\n(Yannick / Manus)
+    
+    draft --> beta : Tests OK\n+ Fiche complète
+    draft --> archived : Abandon
+    
+    beta --> stable : 3+ usages validés\n0 bug critique\nValidation Architecte
+    beta --> draft : Régression\nou refactoring
+    
+    stable --> deprecated : Breaking change\nou remplacement
+    stable --> stable : Patch / Minor update
+    
+    deprecated --> archived : 6 mois sans usage
+    deprecated --> stable : Restauration\n(décision Architecte)
+    
+    archived --> [*]
+
+    note right of draft
+        Statut initial
+        Code partiel OK
+        Fiche COMPONENT.md requise
+    end note
+    
+    note right of stable
+        Production-ready
+        Tests complets
+        Skill Manus associé
+        Notion page à jour
+    end note
